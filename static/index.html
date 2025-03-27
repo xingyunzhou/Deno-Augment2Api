@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Deno-Augment2Api" />
+    <meta name="keywords" content="Deno, Augment2Api" />
+    <meta name="author" content="lpp" />
+    <meta name="robots" content="index, follow" />
+    <title>Deno-Augment2Api</title>
+    <style>
+      :root {
+        --primary-color: #4361ee;
+        --secondary-color: #3f37c9;
+        --success-color: #4caf50;
+        --error-color: #f44336;
+        --bg-color: #f8f9fa;
+        --card-bg: #ffffff;
+        --text-color: #333333;
+        --border-color: #e0e0e0;
+        --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+        padding: 20px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      h1 {
+        font-size: 28px;
+        font-weight: 600;
+        color: black;
+      }
+
+      h2 {
+        font-size: 20px;
+        font-weight: 500;
+        margin-bottom: 15px;
+        color: var(--secondary-color);
+      }
+
+      .dashboard {
+        display: flex;
+        flex-direction: row;
+        gap: 20px;
+        align-items: stretch;
+        min-height: 500px;
+      }
+
+      @media (max-width: 768px) {
+        .dashboard {
+          flex-direction: column;
+        }
+      }
+
+      .panel {
+        background: var(--card-bg);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 25px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel-left {
+        width: 50%;
+        max-width: 580px;
+        flex: 1;
+      }
+
+      .panel-right {
+        width: 50%;
+        max-width: 580px;
+        flex: 1;
+        position: sticky;
+        top: 20px;
+      }
+
+      @media (max-width: 768px) {
+        .panel-left,
+        .panel-right {
+          width: 100%;
+          max-width: none;
+        }
+      }
+
+      .panel-title {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .panel-title i {
+        margin-right: 10px;
+        font-size: 20px;
+        color: var(--primary-color);
+      }
+
+      .panel-title h2 {
+        margin-bottom: 0;
+      }
+
+      .token-display {
+        background: var(--bg-color);
+        padding: 15px;
+        border-radius: var(--radius);
+        word-break: break-all;
+        margin: 15px 0;
+        border: 1px solid var(--border-color);
+        font-family: monospace;
+        font-size: 14px;
+        position: relative;
+      }
+
+      .token-label {
+        font-weight: 500;
+        margin-bottom: 5px;
+        color: #666;
+      }
+
+      button {
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 10px;
+        transition: background 0.3s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      button:hover {
+        background: var(--secondary-color);
+      }
+
+      button i {
+        margin-right: 8px;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        padding: 12px;
+        margin: 10px 0;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        font-size: 14px;
+        transition: border 0.3s;
+      }
+
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+
+      textarea {
+        height: 120px;
+        resize: vertical;
+      }
+
+      .error {
+        color: var(--error-color);
+        margin: 10px 0;
+        padding: 10px;
+        background-color: rgba(244, 67, 54, 0.1);
+        border-radius: var(--radius);
+        display: none;
+      }
+
+      .success {
+        color: var(--success-color);
+        margin: 10px 0;
+        padding: 10px;
+        background-color: rgba(76, 175, 80, 0.1);
+        border-radius: var(--radius);
+        display: none;
+      }
+
+      .step {
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px dashed var(--border-color);
+      }
+
+      .step:last-child {
+        border-bottom: none;
+      }
+
+      .step-number {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        background-color: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 24px;
+        margin-right: 10px;
+        font-size: 14px;
+      }
+
+      /* 添加一些图标 */
+      .icon {
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        stroke-width: 0;
+        stroke: currentColor;
+        fill: currentColor;
+        vertical-align: middle;
+      }
+
+      /* 添加Token列表样式 */
+      .token-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 15px;
+        max-height: 500px;
+        overflow-y: auto;
+        padding-right: 10px;
+      }
+
+      .token-item {
+        background: var(--bg-color);
+        border-radius: var(--radius);
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .current-token {
+        border: 2px solid var(--primary-color);
+      }
+
+      .token-header {
+        display: flex;
+        padding: 12px 15px;
+        cursor: pointer;
+        align-items: center;
+        background: #f0f2f5;
+      }
+
+      .token-number {
+        background: var(--primary-color);
+        color: white;
+        padding: 6px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        min-width: 30px;
+        border-radius: 4px;
+        margin-right: 12px;
+      }
+
+      .token-summary {
+        flex: 1;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .token-toggle {
+        margin-left: 10px;
+        transition: transform 0.3s;
+      }
+
+      .token-toggle.open {
+        transform: rotate(180deg);
+      }
+
+      .token-details {
+        padding: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .token-details.open {
+        padding: 12px;
+        max-height: none;
+        overflow: visible;
+      }
+
+      .token-details .token-label {
+        font-size: 13px;
+        margin-bottom: 3px;
+      }
+
+      .token-details .token-display {
+        font-size: 13px;
+        padding: 10px;
+        margin: 5px 0 10px 0;
+      }
+
+      .token-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 8px;
+      }
+
+      .token-actions button {
+        margin-left: 10px;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+
+      .no-tokens {
+        padding: 20px;
+        text-align: center;
+        background: var(--bg-color);
+        border-radius: var(--radius);
+        color: #666;
+        margin-bottom: 15px;
+      }
+
+      /* 添加加载动画样式 */
+      .loading {
+        position: relative;
+        pointer-events: none;
+      }
+
+      .loading:after {
+        content: "";
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 0.8s linear infinite;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .btn-text {
+        display: inline-block;
+      }
+
+      .loading .btn-icon {
+        display: none;
+      }
+
+      /* 添加页脚样式 */
+      footer {
+        text-align: center;
+        margin-top: 30px;
+        padding: 15px 0;
+        color: #666;
+        font-size: 14px;
+        border-top: 1px solid var(--border-color);
+        margin-top: auto;
+      }
+
+      footer a {
+        color: var(--primary-color);
+        text-decoration: none;
+        transition: color 0.3s;
+      }
+
+      footer a:hover {
+        color: var(--secondary-color);
+        text-decoration: underline;
+      }
+    </style>
+    <!-- 添加图标 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Augment面板</h1>
+      </header>
+
+      <div class="dashboard">
+        <!-- 左侧面板：查看当前Token -->
+        <div class="panel panel-left">
+          <div class="panel-title">
+            <i class="bi bi-key-fill"></i>
+            <h2>当前Token列表</h2>
+          </div>
+
+          <div id="token-list">加载中...</div>
+          <button id="refresh-token">
+            <i class="bi bi-arrow-clockwise btn-icon"></i>
+            <span class="btn-text">刷新</span>
+          </button>
+        </div>
+
+        <!-- 右侧面板：授权获取Token -->
+        <div class="panel panel-right">
+          <div class="panel-title">
+            <i class="bi bi-shield-lock-fill"></i>
+            <h2>授权获取Token</h2>
+          </div>
+
+          <div class="auth-steps">
+            <div class="step">
+              <h3>
+                <span class="step-number">1</span>
+                获取授权地址
+              </h3>
+              <p>点击下方按钮获取授权地址，然后在浏览器中打开该地址进行授权。</p>
+              <button id="get-auth-url">
+                <i class="bi bi-link-45deg" class="btn-icon"></i>
+                <span class="btn-text">获取授权地址</span>
+              </button>
+              <div id="auth-url" class="token-display" style="display: none"></div>
+            </div>
+
+            <div class="step">
+              <h3>
+                <span class="step-number">2</span>
+                提交授权响应
+              </h3>
+              <p>完成授权后，将获得的授权响应粘贴到下面的文本框中：</p>
+              <textarea id="auth-response" placeholder='{"code":"_000baec407c57c4bf9xxxxxxxxxxxxxx","state":"0uXxxxxxxxx","tenant_url":"https://d20.api.augmentcode.com/"}'></textarea>
+              <div id="validation-message" class="error"></div>
+              <button id="submit-auth">
+                <i class="bi bi-check2-circle" class="btn-icon"></i>
+                <span class="btn-text">获取Token</span>
+              </button>
+              <div id="submit-result" class="success"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 添加页脚 -->
+      <footer>
+        Designed by
+        <a href="https://github.com/xiaojia21190" target="_blank">lpp</a>
+      </footer>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // 获取当前Token列表
+        function fetchCurrentToken() {
+          fetch("/getTokens")
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.status === "success") {
+                const tokenListElement = document.getElementById("token-list");
+
+                if (data.tokens.length === 0) {
+                  tokenListElement.innerHTML = '<div class="no-tokens">暂无可用Token，请点击右侧面板获取</div>';
+                  return;
+                }
+
+                // 创建token列表容器
+                tokenListElement.innerHTML = '<div class="token-list"></div>';
+                const listContainer = tokenListElement.querySelector(".token-list");
+
+                // 添加每个token项
+                data.tokens.forEach((tokenInfo, index) => {
+                  // 截断token以便显示
+                  const shortToken = tokenInfo.token.length > 15 ? tokenInfo.token.substring(0, 15) + "..." : tokenInfo.token;
+
+                  const tokenItem = document.createElement("div");
+                  tokenItem.className = "token-item";
+                  tokenItem.innerHTML = `
+                                <div class="token-header">
+                                    <div class="token-number">${index + 1}</div>
+                                    <div class="token-summary">${shortToken}</div>
+                                    <div class="token-toggle"><i class="bi bi-chevron-down"></i></div>
+                                </div>
+                                <div class="token-details">
+                                    <div class="token-label">Token:</div>
+                                    <div class="token-display">${tokenInfo.token}</div>
+                                    <div class="token-label">租户URL:</div>
+                                    <div class="token-display">${tokenInfo.tenant_url}</div>
+                                    <div class="token-label">创建时间:</div>
+                                    <div class="token-display">${tokenInfo.created_at}</div>
+                                    <div class="token-actions">
+                                        <button class="delete-token" data-token="${tokenInfo.token}">
+                                            <i class="bi bi-trash"></i> 删除
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+
+                  listContainer.appendChild(tokenItem);
+
+                  // 添加点击事件
+                  const header = tokenItem.querySelector(".token-header");
+                  const details = tokenItem.querySelector(".token-details");
+                  const toggle = tokenItem.querySelector(".token-toggle");
+
+                  header.addEventListener("click", function () {
+                    details.classList.toggle("open");
+                    toggle.classList.toggle("open");
+                  });
+                });
+              } else {
+                showError("获取Token列表失败: " + (data.error || "未知错误"));
+              }
+            })
+            .catch((error) => {
+              document.getElementById("token-list").innerHTML = '<div class="error" style="display:block;">请求失败: ' + error.message + "</div>";
+            });
+
+          return Promise.resolve(); // 确保可以使用.finally()
+        }
+
+        // 显示错误信息的辅助函数
+        function showError(message) {
+          const tokenListElement = document.getElementById("token-list");
+          tokenListElement.innerHTML = `<div class="error" style="display:block;">${message}</div>`;
+        }
+
+        // 获取授权地址
+        document.getElementById("get-auth-url").addEventListener("click", function () {
+          const button = this;
+          button.classList.add("loading");
+
+          fetch("/auth")
+            .then((response) => response.json())
+            .then((data) => {
+              const authUrlElement = document.getElementById("auth-url");
+              authUrlElement.textContent = data.authorizeUrl;
+              authUrlElement.style.display = "block";
+            })
+            .catch((error) => {
+              alert("获取授权地址失败: " + error.message);
+            })
+            .finally(() => {
+              button.classList.remove("loading");
+            });
+        });
+
+        // 验证授权响应格式
+        function validateAuthResponse(response) {
+          try {
+            const data = JSON.parse(response);
+            if (!data.code || !data.state || !data.tenant_url) {
+              return { valid: false, message: "缺少必要字段: code, state 或 tenant_url" };
+            }
+            return { valid: true };
+          } catch (e) {
+            return { valid: false, message: "JSON格式无效: " + e.message };
+          }
+        }
+
+        // 提交授权响应
+        document.getElementById("submit-auth").addEventListener("click", function () {
+          const button = this;
+          const authResponse = document.getElementById("auth-response").value.trim();
+          const validationMessage = document.getElementById("validation-message");
+
+          // 检查是否为空
+          if (!authResponse) {
+            validationMessage.textContent = "请输入授权响应";
+            validationMessage.style.display = "block";
+            return;
+          }
+
+          const validationResult = validateAuthResponse(authResponse);
+
+          if (!validationResult.valid) {
+            validationMessage.textContent = validationResult.message;
+            validationMessage.style.display = "block";
+            return;
+          }
+
+          validationMessage.style.display = "none";
+          button.classList.add("loading");
+
+          fetch("/getToken", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: authResponse,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              const submitResult = document.getElementById("submit-result");
+              if (data.status === "success") {
+                submitResult.textContent = "Token获取成功！";
+                submitResult.className = "success";
+                fetchCurrentToken(); // 刷新当前Token显示
+              } else {
+                submitResult.textContent = "获取失败: " + (data.error || "未知错误");
+                submitResult.className = "error";
+              }
+              submitResult.style.display = "block";
+            })
+            .catch((error) => {
+              const submitResult = document.getElementById("submit-result");
+              submitResult.textContent = "请求失败: " + error.message;
+              submitResult.className = "error";
+              submitResult.style.display = "block";
+            })
+            .finally(() => {
+              button.classList.remove("loading");
+            });
+        });
+
+        // 刷新Token
+        document.getElementById("refresh-token").addEventListener("click", function () {
+          const button = this;
+          button.classList.add("loading");
+
+          fetchCurrentToken().finally(() => {
+            button.classList.remove("loading");
+          });
+        });
+
+        // 绑定删除按钮事件
+        document.addEventListener("click", function (e) {
+          if (e.target.closest(".delete-token")) {
+            const button = e.target.closest(".delete-token");
+            const token = button.dataset.token;
+
+            if (confirm("确定要删除此Token吗？")) {
+              fetch(`/deleteToken/${token}`, {
+                method: "DELETE",
+              })
+                .then((response) => response.json())
+                .then((data) => {
+                  if (data.status === "success") {
+                    fetchCurrentToken(); // 刷新列表
+                  } else {
+                    alert("删除失败: " + (data.error || "未知错误"));
+                  }
+                })
+                .catch((error) => {
+                  alert("请求失败: " + error.message);
+                });
+            }
+          }
+        });
+
+        // 初始加载
+        fetchCurrentToken();
+      });
+    </script>
+  </body>
+</html>
