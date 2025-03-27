@@ -6,6 +6,7 @@ import {
 import "jsr:@std/dotenv/load";
 import { randomBytes, createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
+import { TokenData, OpenAIRequest, OpenAIResponse, OpenAIStreamResponse, AugmentRequest, AugmentResponse, AugmentChatHistory, ChatMessage, ToolDefinition, OpenAIModelList } from "./types.ts";
 
 const kv = await Deno.openKv();
 
@@ -15,90 +16,6 @@ const router = new Router();
 const clientID = "v";
 
 
-// 模型接口定义
-interface OpenAIModel {
-  id: string;
-  object: string;
-  created: number;
-  owned_by: string;
-}
-
-interface OpenAIModelList {
-  object: string;
-  data: OpenAIModel[];
-}
-
-
-interface TokenData {
-  token: string;
-  tenant_url: string;
-  created_at: number;
-}
-
-// 定义接口
-interface OpenAIRequest {
-  model: string;
-  messages: ChatMessage[];
-  stream?: boolean;
-  temperature?: number;
-  max_tokens?: number;
-}
-
-interface OpenAIResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Choice[];
-  usage: Usage;
-}
-
-interface OpenAIStreamResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: StreamChoice[];
-}
-
-interface StreamChoice {
-  index: number;
-  delta: ChatMessage;
-  finish_reason: string | null;
-}
-
-interface Choice {
-  index: number;
-  message: ChatMessage;
-  finish_reason: string | null;
-}
-
-interface ChatMessage {
-  role: string;
-  content: string | any;
-}
-
-interface Usage {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-}
-
-interface AugmentRequest {
-  chat_history: AugmentChatHistory[];
-  message: string;
-  mode: string;
-}
-
-interface AugmentChatHistory {
-  response_text: string;
-  request_message: string;
-}
-
-interface AugmentResponse {
-  text: string;
-  done: boolean;
-}
 
 function base64URLEncode(buffer: Buffer): string {
   return buffer
@@ -450,9 +367,9 @@ async function handleNonStreamRequest(ctx: any, augmentReq: AugmentRequest, mode
     // 估算token数量
     const promptTokens = estimateTokenCount(augmentReq.message);
     let historyTokens = 0;
-    for (const history of augmentReq.chat_history) {
-      historyTokens += estimateTokenCount(history.request_message);
-      historyTokens += estimateTokenCount(history.response_text);
+    for (const history of augmentReq.chatHistory) {
+      historyTokens += estimateTokenCount(history.requestMessage);
+      historyTokens += estimateTokenCount(history.responseText);
     }
     const completionTokens = estimateTokenCount(fullText);
 
@@ -504,29 +421,173 @@ function getMessageContent(message: ChatMessage): string {
   return '';
 }
 
-function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
-  const augmentReq: AugmentRequest = {
-    mode: "CHAT",
-    message: '',
-    chat_history: []
-  };
+// 添加常量定义
+const defaultPrompt = "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly!";
+const defaultPrefix = "You are AI assistant,help me to solve problems!";
 
-  if (req.messages.length > 0) {
-    const lastMsg = req.messages[req.messages.length - 1];
-    augmentReq.message = getMessageContent(lastMsg);
+// 生成唯一的请求ID
+function generateRequestID(): string {
+  return crypto.randomUUID();
+}
+
+// 生成一个基于时间戳的SHA-256哈希值作为CheckpointID
+function generateCheckpointID(): string {
+  const timestamp = Date.now().toString();
+  return sha256Hash(Buffer.from(timestamp)).toString('hex');
+}
+
+// 检测语言类型
+function detectLanguage(req: OpenAIRequest): string {
+  if (req.messages.length === 0) {
+    return "";
   }
 
-  const history: AugmentChatHistory[] = [];
-  for (let i = 0; i < req.messages.length - 1; i += 2) {
-    if (i + 1 < req.messages.length) {
-      history.push({
-        request_message: getMessageContent(req.messages[i]),
-        response_text: getMessageContent(req.messages[i + 1])
-      });
+  const content = getMessageContent(req.messages[req.messages.length - 1]);
+  // 简单判断一下当前对话语言类型
+  if (content.toLowerCase().includes("html")) {
+    return "HTML";
+  } else if (content.toLowerCase().includes("python")) {
+    return "Python";
+  } else if (content.toLowerCase().includes("javascript")) {
+    return "JavaScript";
+  } else if (content.toLowerCase().includes("go")) {
+    return "Go";
+  } else if (content.toLowerCase().includes("rust")) {
+    return "Rust";
+  } else if (content.toLowerCase().includes("java")) {
+    return "Java";
+  } else if (content.toLowerCase().includes("c++")) {
+    return "C++";
+  } else if (content.toLowerCase().includes("c#")) {
+    return "C#";
+  } else if (content.toLowerCase().includes("php")) {
+    return "PHP";
+  } else if (content.toLowerCase().includes("ruby")) {
+    return "Ruby";
+  } else if (content.toLowerCase().includes("swift")) {
+    return "Swift";
+  } else if (content.toLowerCase().includes("kotlin")) {
+    return "Kotlin";
+  } else if (content.toLowerCase().includes("typescript")) {
+    return "TypeScript";
+  } else if (content.toLowerCase().includes("c")) {
+    return "C";
+  }
+  return "HTML";
+}
+
+// 获取完整的工具定义
+function getFullToolDefinitions(): ToolDefinition[] {
+  return [
+    {
+      name: "web-search",
+      description: "Search the web for information. Returns results in markdown format.\nEach result includes the URL, title, and a snippet from the page if available.\n\nThis tool uses Google's Custom Search API to find relevant web pages.",
+      inputSchemaJSON: `{
+        "description": "Input schema for the web search tool.",
+        "properties": {
+          "query": {
+            "description": "The search query to send.",
+            "title": "Query",
+            "type": "string"
+          },
+          "num_results": {
+            "default": 5,
+            "description": "Number of results to return",
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Num Results",
+            "type": "integer"
+          }
+        },
+        "required": ["query"],
+        "title": "WebSearchInput",
+        "type": "object"
+      }`,
+      toolSafety: 0
+    },
+    // 其他工具定义...
+    {
+      name: "web-fetch",
+      description: "Fetches data from a webpage and converts it into Markdown.\n\n1. The tool takes in a URL and returns the content of the page in Markdown format;\n2. If the return is not valid Markdown, it means the tool cannot successfully parse this page.",
+      inputSchemaJSON: `{
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The URL to fetch."
+          }
+        },
+        "required": ["url"]
+      }`,
+      toolSafety: 0
+    },
+    // 添加更多工具定义...
+  ];
+}
+
+
+// 修改 convertToAugmentRequest 函数
+function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
+  const augmentReq: AugmentRequest = {
+    path: "",
+    mode: "AGENT", // 固定为Agent模式，CHAT模式大概率会使用垃圾模型回复
+    prefix: defaultPrefix,
+    suffix: " ",
+    lang: detectLanguage(req),
+    message: "",
+    chatHistory: [],
+    blobs: {
+      checkpointID: generateCheckpointID(),
+      addedBlobs: [],
+      deletedBlobs: []
+    },
+    userGuidedBlobs: [],
+    externalSourceIds: [],
+    featureDetectionFlags: {
+      supportRawOutput: true
+    },
+    toolDefinitions: getFullToolDefinitions(),
+    nodes: []
+  };
+
+  // 处理消息历史
+  if (req.messages.length > 1) { // 有历史消息
+    // 每次处理一对消息（用户问题和助手回答）
+    for (let i = 0; i < req.messages.length - 1; i += 2) {
+      if (i + 1 < req.messages.length) {
+        const userMsg = req.messages[i];
+        const assistantMsg = req.messages[i + 1];
+
+        const chatHistory: AugmentChatHistory = {
+          requestMessage: getMessageContent(userMsg),
+          responseText: getMessageContent(assistantMsg),
+          requestID: generateRequestID(),
+          requestNodes: [],
+          responseNodes: [{
+            id: 0,
+            type: 0,
+            content: getMessageContent(assistantMsg),
+            toolUse: {
+              toolUseID: "",
+              toolName: "",
+              inputJSON: ""
+            },
+            agentMemory: {
+              content: ""
+            }
+          }]
+        };
+        augmentReq.chatHistory.push(chatHistory);
+      }
     }
   }
 
-  augmentReq.chat_history = history;
+  // 设置当前消息
+  if (req.messages.length > 0) {
+    const lastMsg = req.messages[req.messages.length - 1];
+    augmentReq.message = defaultPrompt + "\n" + getMessageContent(lastMsg);
+  }
+
   return augmentReq;
 }
 
