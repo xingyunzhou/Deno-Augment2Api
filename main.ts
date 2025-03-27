@@ -232,9 +232,18 @@ router.get("/getTokens", async (ctx: RouterContext<"/getTokens", Record<string, 
   console.log(iter);
   const tokens = [];
   for await (const res of iter) tokens.push(res);
+  const tokenData = tokens.map((entry) => {
+    const value = entry.value as { token: string; tenant_url: string; created_at: number };
+    return {
+      token: value.token,
+      tenant_url: value.tenant_url,
+      created_at: value.created_at,
+    };
+  });
+
   ctx.response.body = {
     status: "success",
-    tokens: tokens,
+    tokens: tokenData,
   };
 });
 
