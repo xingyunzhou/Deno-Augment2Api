@@ -7,8 +7,6 @@ import "jsr:@std/dotenv/load";
 import { randomBytes, createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
 
-//test
-// const kv = await Deno.openKv("https://api.deno.com/databases/9c12a2bc-0314-41f8-a78e-80f30950f2a7/connect");
 const kv = await Deno.openKv();
 
 const app = new Application();
