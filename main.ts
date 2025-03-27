@@ -6,7 +6,6 @@ import {
 import "jsr:@std/dotenv/load";
 import { randomBytes, createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { bold } from "jsr:@std/internal@^1.0.5/styles";
 
 const kv = await Deno.openKv();
 
