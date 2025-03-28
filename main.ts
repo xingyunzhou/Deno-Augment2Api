@@ -423,7 +423,7 @@ function getMessageContent(message: ChatMessage): string {
 }
 
 // 添加常量定义
-const defaultPrompt = "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly!";
+const defaultPrompt = "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly! 用中文回答";
 const defaultPrefix = "You are AI assistant,help me to solve problems!";
 
 // 生成唯一的请求ID
