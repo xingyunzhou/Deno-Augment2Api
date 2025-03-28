@@ -8,8 +8,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { TokenData, OpenAIRequest, OpenAIResponse, OpenAIStreamResponse, AugmentRequest, AugmentResponse, AugmentChatHistory, ChatMessage, ToolDefinition, OpenAIModelList } from "./types.ts";
 
-// const kv = await Deno.openKv();
-const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
+const kv = await Deno.openKv();
+// const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
 
 const app = new Application();
 const router = new Router();
