@@ -8,7 +8,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { TokenData, OpenAIRequest, OpenAIResponse, OpenAIStreamResponse, AugmentRequest, AugmentResponse, AugmentChatHistory, ChatMessage, ToolDefinition, OpenAIModelList } from "./types.ts";
 
-const kv = await Deno.openKv();
+// const kv = await Deno.openKv();
+const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
 
 const app = new Application();
 const router = new Router();
@@ -483,45 +484,220 @@ function getFullToolDefinitions(): ToolDefinition[] {
       name: "web-search",
       description: "Search the web for information. Returns results in markdown format.\nEach result includes the URL, title, and a snippet from the page if available.\n\nThis tool uses Google's Custom Search API to find relevant web pages.",
       inputSchemaJSON: `{
-        "description": "Input schema for the web search tool.",
-        "properties": {
-          "query": {
-            "description": "The search query to send.",
-            "title": "Query",
-            "type": "string"
-          },
-          "num_results": {
-            "default": 5,
-            "description": "Number of results to return",
-            "maximum": 10,
-            "minimum": 1,
-            "title": "Num Results",
-            "type": "integer"
-          }
-        },
-        "required": ["query"],
-        "title": "WebSearchInput",
-        "type": "object"
-      }`,
-      toolSafety: 0
+				"description": "Input schema for the web search tool.",
+				"properties": {
+					"query": {
+						"description": "The search query to send.",
+						"title": "Query",
+						"type": "string"
+					},
+					"num_results": {
+						"default": 5,
+						"description": "Number of results to return",
+						"maximum": 10,
+						"minimum": 1,
+						"title": "Num Results",
+						"type": "integer"
+					}
+				},
+				"required": ["query"],
+				"title": "WebSearchInput",
+				"type": "object"
+			}`,
+      toolSafety: 0,
     },
-    // 其他工具定义...
     {
       name: "web-fetch",
       description: "Fetches data from a webpage and converts it into Markdown.\n\n1. The tool takes in a URL and returns the content of the page in Markdown format;\n2. If the return is not valid Markdown, it means the tool cannot successfully parse this page.",
       inputSchemaJSON: `{
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string",
-            "description": "The URL to fetch."
-          }
-        },
-        "required": ["url"]
-      }`,
-      toolSafety: 0
+				"type": "object",
+				"properties": {
+					"url": {
+						"type": "string",
+						"description": "The URL to fetch."
+					}
+				},
+				"required": ["url"]
+			}`,
+      toolSafety: 0,
     },
-    // 添加更多工具定义...
+    {
+      name: "codebase-retrieval",
+      description: "This tool is Augment's context engine, the world's best codebase context engine. It:\n1. Takes in a natural language description of the code you are looking for;\n2. Uses a proprietary retrieval/embedding model suite that produces the highest-quality recall of relevant code snippets from across the codebase;\n3. Maintains a real-time index of the codebase, so the results are always up-to-date and reflects the current state of the codebase;\n4. Can retrieve across different programming languages;\n5. Only reflects the current state of the codebase on the disk, and has no information on version control or code history.",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"information_request": {
+						"type": "string",
+						"description": "A description of the information you need."
+					}
+				},
+				"required": ["information_request"]
+			}`,
+      toolSafety: 1,
+    },
+    {
+      name: "shell",
+      description: "Execute a shell command.\n\n- You can use this tool to interact with the user's local version control system. Do not use the\nretrieval tool for that purpose.\n- If there is a more specific tool available that can perform the function, use that tool instead of\nthis one.\n\nThe OS is darwin. The shell is 'bash'.",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"command": {
+						"type": "string",
+						"description": "The shell command to execute."
+					}
+				},
+				"required": ["command"]
+			}`,
+      toolSafety: 2,
+    },
+    {
+      name: "str-replace-editor",
+      description: "Custom editing tool for viewing, creating and editing files\n* `path` is a file path relative to the workspace root\n* command `view` displays the result of applying `cat -n`.\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* `insert` and `str_replace` commands output a snippet of the edited section for each entry. This snippet reflects the final state of the file after all edits and IDE auto-formatting have been applied.\n\n\nNotes for using the `str_replace` command:\n* Use the `str_replace_entries` parameter with an array of objects\n* Each object should have `old_str`, `new_str`, `old_str_start_line_number` and `old_str_end_line_number` properties\n* The `old_str_start_line_number` and `old_str_end_line_number` parameters are 1-based line numbers\n* Both `old_str_start_line_number` and `old_str_end_line_number` are INCLUSIVE\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespace!\n* Empty `old_str` is allowed only when the file is empty or contains only whitespaces\n* It is important to specify `old_str_start_line_number` and `old_str_end_line_number` to disambiguate between multiple occurrences of `old_str` in the file\n* Make sure that `old_str_start_line_number` and `old_str_end_line_number` do not overlap with other entries in `str_replace_entries`\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`. Can be an empty string to delete content\n\nNotes for using the `insert` command:\n* Use the `insert_line_entries` parameter with an array of objects\n* Each object should have `insert_line` and `new_str` properties\n* The `insert_line` parameter specifies the line number after which to insert the new string\n* The `insert_line` parameter is 1-based line number\n* To insert at the very beginning of the file, use `insert_line: 0`\n\nNotes for using the `view` command:\n* Strongly prefer to use larger ranges of at least 1000 lines when scanning through files. One call with large range is much more efficient than many calls with small ranges\n* Prefer to use grep instead of view when looking for a specific symbol in the file\n\nIMPORTANT:\n* This is the only tool you should use for editing files.\n* If it fails try your best to fix inputs and retry.\n* DO NOT fall back to removing the whole file and recreating it from scratch.\n* DO NOT use sed or any other command line tools for editing files.\n* Try to fit as many edits in one tool call as possible\n* Use view command to read the file before editing it.\n",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"command": {
+						"type": "string",
+						"enum": ["view", "str_replace", "insert"],
+						"description": "The commands to run. Allowed options are: 'view', 'str_replace', 'insert'."
+					},
+					"path": {
+						"description": "Full path to file relative to the workspace root, e.g. 'services/api_proxy/file.py' or 'services/api_proxy'.",
+						"type": "string"
+					},
+					"view_range": {
+						"description": "Optional parameter of 'view' command when 'path' points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting '[start_line, -1]' shows all lines from 'start_line' to the end of the file.",
+						"type": "array",
+						"items": {
+							"type": "integer"
+						}
+					},
+					"insert_line_entries": {
+						"description": "Required parameter of 'insert' command. A list of entries to insert. Each entry is a dictionary with keys 'insert_line' and 'new_str'.",
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"insert_line": {
+									"description": "The line number after which to insert the new string. This line number is relative to the state of the file before any insertions in the current tool call have been applied.",
+									"type": "integer"
+								},
+								"new_str": {
+									"description": "The string to insert. Can be an empty string.",
+									"type": "string"
+								}
+							},
+							"required": ["insert_line", "new_str"]
+						}
+					},
+					"str_replace_entries": {
+						"description": "Required parameter of 'str_replace' command. A list of entries to replace. Each entry is a dictionary with keys 'old_str', 'old_str_start_line_number', 'old_str_end_line_number' and 'new_str'. 'old_str' from different entries should not overlap.",
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"old_str": {
+									"description": "The string in 'path' to replace.",
+									"type": "string"
+								},
+								"old_str_start_line_number": {
+									"description": "The line number of the first line of 'old_str' in the file. This is used to disambiguate between multiple occurrences of 'old_str' in the file.",
+									"type": "integer"
+								},
+								"old_str_end_line_number": {
+									"description": "The line number of the last line of 'old_str' in the file. This is used to disambiguate between multiple occurrences of 'old_str' in the file.",
+									"type": "integer"
+								},
+								"new_str": {
+									"description": "The string to replace 'old_str' with. Can be an empty string to delete content.",
+									"type": "string"
+								}
+							},
+							"required": ["old_str", "new_str", "old_str_start_line_number", "old_str_end_line_number"]
+						}
+					}
+				},
+				"required": ["command", "path"]
+			}`,
+      toolSafety: 1,
+    },
+    {
+      name: "save-file",
+      description: "Save a file.",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"file_path": {
+						"type": "string",
+						"description": "The path of the file to save."
+					},
+					"file_content": {
+						"type": "string",
+						"description": "The content of the file to save."
+					},
+					"add_last_line_newline": {
+						"type": "boolean",
+						"description": "Whether to add a newline at the end of the file (default: true)."
+					}
+				},
+				"required": ["file_path", "file_content"]
+			}`,
+      toolSafety: 1,
+    },
+    {
+      name: "launch-process",
+      description: "Launch a new process.\nIf wait is specified, waits up to that many seconds for the process to complete.\nIf the process completes within wait seconds, returns its output.\nIf it doesn't complete within wait seconds, returns partial output and process ID.\nIf wait is not specified, returns immediately with just the process ID.\nThe process's stdin is always enbled, so you can use write_process to send input if needed.",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"command": {
+						"type": "string",
+						"description": "The shell command to execute"
+					},
+					"wait": {
+						"type": "number",
+						"description": "Optional: number of seconds to wait for the command to complete."
+					},
+					"cwd": {
+						"type": "string",
+						"description": "Working directory for the command. If not supplied, uses the current working directory."
+					}
+				},
+				"required": ["command"]
+			}`,
+      toolSafety: 2,
+    },
+    {
+      name: "read-process",
+      description: "Read output from a terminal.",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"terminal_id": {
+						"type": "number",
+						"description": "Terminal ID to read from."
+					}
+				},
+				"required": ["terminal_id"]
+			}`,
+      toolSafety: 1,
+    },
+    {
+      name: "kill-process",
+      description: "Kill a process by its terminal ID.",
+      inputSchemaJSON: `{
+				"type": "object",
+				"properties": {
+					"terminal_id": {
+						"type": "number",
+						"description": "Terminal ID to kill."
+					}
+				},
+				"required": ["terminal_id"]
+			}`,
+      toolSafety: 1,
+    },
   ];
 }
 
@@ -538,8 +714,8 @@ function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
     chatHistory: [],
     blobs: {
       checkpointID: generateCheckpointID(),
-      addedBlobs: [],
-      deletedBlobs: []
+      added_blobs: [],
+      deleted_blobs: []
     },
     userGuidedBlobs: [],
     externalSourceIds: [],

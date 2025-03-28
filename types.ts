@@ -44,8 +44,8 @@ export interface AugmentRequest {
   path?: string;
   blobs?: {
     checkpointID: string;
-    addedBlobs: [];
-    deletedBlobs: [];
+    added_blobs: [];
+    deleted_blobs: [];
   };
   userGuidedBlobs?: [];
   externalSourceIds?: [];
