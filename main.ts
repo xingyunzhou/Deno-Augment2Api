@@ -4,19 +4,28 @@ import {
   RouterContext,
 } from "https://deno.land/x/oak@v12.6.2/mod.ts";
 import "jsr:@std/dotenv/load";
-import { randomBytes, createHash } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
-import { TokenData, OpenAIRequest, OpenAIResponse, OpenAIStreamResponse, AugmentRequest, AugmentResponse, AugmentChatHistory, ChatMessage, ToolDefinition, OpenAIModelList } from "./types.ts";
+import {
+  AugmentChatHistory,
+  AugmentRequest,
+  AugmentResponse,
+  ChatMessage,
+  OpenAIModelList,
+  OpenAIRequest,
+  OpenAIResponse,
+  OpenAIStreamResponse,
+  TokenData,
+  ToolDefinition,
+} from "./types.ts";
 
-const kv = await Deno.openKv();
-// const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
+// const kv = await Deno.openKv();
+const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
 
 const app = new Application();
 const router = new Router();
 
 const clientID = "v";
-
-
 
 function base64URLEncode(buffer: Buffer): string {
   return buffer
@@ -61,7 +70,7 @@ const generateAuthorizeURL = (oauthState: {
   });
   const authorizeUrl = new URL(
     `/authorize?${params.toString()}`,
-    "https://auth.augmentcode.com"
+    "https://auth.augmentcode.com",
   );
   return authorizeUrl.toString();
 };
@@ -69,7 +78,7 @@ const generateAuthorizeURL = (oauthState: {
 const getAccessToken = async (
   tenant_url: string,
   codeVerifier: string,
-  code: string
+  code: string,
 ) => {
   const data = {
     grant_type: "authorization_code",
@@ -112,10 +121,16 @@ router.post("/getToken", async (ctx) => {
       code: code.code,
       state: code.state,
       tenant_url: code.tenant_url,
-    }
+    };
     console.log(parsedCode);
-    const codeVerifier = await kv.get([`auth_codeVerifier_${parsedCode.state}`]);
-    const token = await getAccessToken(parsedCode.tenant_url, codeVerifier.value as string, parsedCode.code);
+    const codeVerifier = await kv.get([
+      `auth_codeVerifier_${parsedCode.state}`,
+    ]);
+    const token = await getAccessToken(
+      parsedCode.tenant_url,
+      codeVerifier.value as string,
+      parsedCode.code,
+    );
     console.log(token);
     if (token) {
       kv.set([`auth_token`, token], {
@@ -141,27 +156,33 @@ router.post("/getToken", async (ctx) => {
   }
 });
 
-
 //getTokens
-router.get("/getTokens", async (ctx: RouterContext<"/getTokens", Record<string, string>>) => {
-  const iter = kv.list({ prefix: ["auth_token"] });
-  console.log(iter);
-  const tokens = [];
-  for await (const res of iter) tokens.push(res);
-  const tokenData = tokens.map((entry) => {
-    const value = entry.value as { token: string; tenant_url: string; created_at: number };
-    return {
-      token: value.token,
-      tenant_url: value.tenant_url,
-      created_at: value.created_at,
-    };
-  });
+router.get(
+  "/getTokens",
+  async (ctx: RouterContext<"/getTokens", Record<string, string>>) => {
+    const iter = kv.list({ prefix: ["auth_token"] });
+    console.log(iter);
+    const tokens = [];
+    for await (const res of iter) tokens.push(res);
+    const tokenData = tokens.map((entry) => {
+      const value = entry.value as {
+        token: string;
+        tenant_url: string;
+        created_at: number;
+      };
+      return {
+        token: value.token,
+        tenant_url: value.tenant_url,
+        created_at: value.created_at,
+      };
+    });
 
-  ctx.response.body = {
-    status: "success",
-    tokens: tokenData,
-  };
-});
+    ctx.response.body = {
+      status: "success",
+      tokens: tokenData,
+    };
+  },
+);
 
 //deleteToken
 router.delete("/deleteToken/:token", async (ctx) => {
@@ -194,7 +215,8 @@ router.post("/v1/chat/completions", async (ctx) => {
   }
 
   // 随机获取一个token
-  const tokenData = tokens[Math.floor(Math.random() * tokens.length)].value as TokenData;
+  const tokenData = tokens[Math.floor(Math.random() * tokens.length)]
+    .value as TokenData;
   const { token, tenant_url } = tokenData;
 
   // 解析请求体
@@ -218,7 +240,7 @@ async function handleStreamRequest(
   augmentReq: AugmentRequest,
   model: string,
   token: string,
-  tenant_url: string
+  tenant_url: string,
 ) {
   ctx.response.type = "text/event-stream";
   ctx.response.headers.set("Cache-Control", "no-cache");
@@ -232,9 +254,9 @@ async function handleStreamRequest(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        "Authorization": `Bearer ${token}`,
       },
-      body
+      body,
     });
 
     if (!response.ok) {
@@ -283,13 +305,15 @@ async function handleStreamRequest(
                   index: 0,
                   delta: {
                     role: "assistant",
-                    content: augmentResp.text
+                    content: augmentResp.text,
                   },
-                  finish_reason: augmentResp.done ? "stop" : null
-                }]
+                  finish_reason: augmentResp.done ? "stop" : null,
+                }],
               };
 
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(streamResp)}\n\n`));
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(streamResp)}\n\n`),
+              );
 
               if (augmentResp.done) {
                 controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
@@ -303,7 +327,7 @@ async function handleStreamRequest(
         }
 
         controller.close();
-      }
+      },
     });
 
     ctx.response.body = stream;
@@ -311,21 +335,35 @@ async function handleStreamRequest(
     ctx.response.status = 500;
     ctx.response.body = {
       status: "error",
-      message: `请求失败: ${error instanceof Error ? error.message : '未知错误'}`
+      message: `请求失败: ${error instanceof Error ? error.message : "未知错误"
+        }`,
     };
   }
 }
 
 // 处理非流式请求
-async function handleNonStreamRequest(ctx: any, augmentReq: AugmentRequest, model: string, token: string, tenant_url: string) {
+async function handleNonStreamRequest(
+  ctx: any,
+  augmentReq: AugmentRequest,
+  model: string,
+  token: string,
+  tenant_url: string,
+) {
   try {
+    const user_agent = ["augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) GoLand/2024.3.5",
+      "augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5",
+      "augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) PyCharm/2024.3.5"]
     const response = await fetch(`${tenant_url}chat-stream`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": user_agent[Math.ceil(Math.random() * user_agent.length)],
+        "x-api-version": "2",
+        "x-request-id": randomUUID(),
+        "x-request-session-id": randomUUID()
       },
-      body: JSON.stringify(augmentReq)
+      body: JSON.stringify(augmentReq),
     });
 
     if (!response.ok) {
@@ -383,15 +421,15 @@ async function handleNonStreamRequest(ctx: any, augmentReq: AugmentRequest, mode
         index: 0,
         message: {
           role: "assistant",
-          content: fullText
+          content: fullText,
         },
-        finish_reason: "stop"
+        finish_reason: "stop",
       }],
       usage: {
         prompt_tokens: promptTokens + historyTokens,
         completion_tokens: completionTokens,
-        total_tokens: promptTokens + historyTokens + completionTokens
-      }
+        total_tokens: promptTokens + historyTokens + completionTokens,
+      },
     };
 
     ctx.response.body = openAIResp;
@@ -399,31 +437,31 @@ async function handleNonStreamRequest(ctx: any, augmentReq: AugmentRequest, mode
     ctx.response.status = 500;
     ctx.response.body = {
       status: "error",
-      message: `请求失败: ${error instanceof Error ? error.message : '未知错误'}`
+      message: `请求失败: ${error instanceof Error ? error.message : "未知错误"
+        }`,
     };
   }
 }
 
-
-
 // 辅助函数
 function getMessageContent(message: ChatMessage): string {
-  if (typeof message.content === 'string') {
+  if (typeof message.content === "string") {
     return message.content;
   } else if (Array.isArray(message.content)) {
-    let result = '';
+    let result = "";
     for (const item of message.content) {
-      if (item && typeof item === 'object' && 'text' in item) {
+      if (item && typeof item === "object" && "text" in item) {
         result += item.text;
       }
     }
     return result;
   }
-  return '';
+  return "";
 }
 
 // 添加常量定义
-const defaultPrompt = "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly! 用中文回答";
+const defaultPrompt =
+  "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly! 用中文回答";
 const defaultPrefix = "You are AI assistant,help me to solve problems!";
 
 // 生成唯一的请求ID
@@ -434,7 +472,7 @@ function generateRequestID(): string {
 // 生成一个基于时间戳的SHA-256哈希值作为CheckpointID
 function generateCheckpointID(): string {
   const timestamp = Date.now().toString();
-  return sha256Hash(Buffer.from(timestamp)).toString('hex');
+  return sha256Hash(Buffer.from(timestamp)).toString("hex");
 }
 
 // 检测语言类型
@@ -482,7 +520,8 @@ function getFullToolDefinitions(): ToolDefinition[] {
   return [
     {
       name: "web-search",
-      description: "Search the web for information. Returns results in markdown format.\nEach result includes the URL, title, and a snippet from the page if available.\n\nThis tool uses Google's Custom Search API to find relevant web pages.",
+      description:
+        "Search the web for information. Returns results in markdown format.\nEach result includes the URL, title, and a snippet from the page if available.\n\nThis tool uses Google's Custom Search API to find relevant web pages.",
       inputSchemaJSON: `{
 				"description": "Input schema for the web search tool.",
 				"properties": {
@@ -508,7 +547,8 @@ function getFullToolDefinitions(): ToolDefinition[] {
     },
     {
       name: "web-fetch",
-      description: "Fetches data from a webpage and converts it into Markdown.\n\n1. The tool takes in a URL and returns the content of the page in Markdown format;\n2. If the return is not valid Markdown, it means the tool cannot successfully parse this page.",
+      description:
+        "Fetches data from a webpage and converts it into Markdown.\n\n1. The tool takes in a URL and returns the content of the page in Markdown format;\n2. If the return is not valid Markdown, it means the tool cannot successfully parse this page.",
       inputSchemaJSON: `{
 				"type": "object",
 				"properties": {
@@ -523,7 +563,8 @@ function getFullToolDefinitions(): ToolDefinition[] {
     },
     {
       name: "codebase-retrieval",
-      description: "This tool is Augment's context engine, the world's best codebase context engine. It:\n1. Takes in a natural language description of the code you are looking for;\n2. Uses a proprietary retrieval/embedding model suite that produces the highest-quality recall of relevant code snippets from across the codebase;\n3. Maintains a real-time index of the codebase, so the results are always up-to-date and reflects the current state of the codebase;\n4. Can retrieve across different programming languages;\n5. Only reflects the current state of the codebase on the disk, and has no information on version control or code history.",
+      description:
+        "This tool is Augment's context engine, the world's best codebase context engine. It:\n1. Takes in a natural language description of the code you are looking for;\n2. Uses a proprietary retrieval/embedding model suite that produces the highest-quality recall of relevant code snippets from across the codebase;\n3. Maintains a real-time index of the codebase, so the results are always up-to-date and reflects the current state of the codebase;\n4. Can retrieve across different programming languages;\n5. Only reflects the current state of the codebase on the disk, and has no information on version control or code history.",
       inputSchemaJSON: `{
 				"type": "object",
 				"properties": {
@@ -538,7 +579,8 @@ function getFullToolDefinitions(): ToolDefinition[] {
     },
     {
       name: "shell",
-      description: "Execute a shell command.\n\n- You can use this tool to interact with the user's local version control system. Do not use the\nretrieval tool for that purpose.\n- If there is a more specific tool available that can perform the function, use that tool instead of\nthis one.\n\nThe OS is darwin. The shell is 'bash'.",
+      description:
+        "Execute a shell command.\n\n- You can use this tool to interact with the user's local version control system. Do not use the\nretrieval tool for that purpose.\n- If there is a more specific tool available that can perform the function, use that tool instead of\nthis one.\n\nThe OS is darwin. The shell is 'bash'.",
       inputSchemaJSON: `{
 				"type": "object",
 				"properties": {
@@ -553,7 +595,8 @@ function getFullToolDefinitions(): ToolDefinition[] {
     },
     {
       name: "str-replace-editor",
-      description: "Custom editing tool for viewing, creating and editing files\n* `path` is a file path relative to the workspace root\n* command `view` displays the result of applying `cat -n`.\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* `insert` and `str_replace` commands output a snippet of the edited section for each entry. This snippet reflects the final state of the file after all edits and IDE auto-formatting have been applied.\n\n\nNotes for using the `str_replace` command:\n* Use the `str_replace_entries` parameter with an array of objects\n* Each object should have `old_str`, `new_str`, `old_str_start_line_number` and `old_str_end_line_number` properties\n* The `old_str_start_line_number` and `old_str_end_line_number` parameters are 1-based line numbers\n* Both `old_str_start_line_number` and `old_str_end_line_number` are INCLUSIVE\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespace!\n* Empty `old_str` is allowed only when the file is empty or contains only whitespaces\n* It is important to specify `old_str_start_line_number` and `old_str_end_line_number` to disambiguate between multiple occurrences of `old_str` in the file\n* Make sure that `old_str_start_line_number` and `old_str_end_line_number` do not overlap with other entries in `str_replace_entries`\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`. Can be an empty string to delete content\n\nNotes for using the `insert` command:\n* Use the `insert_line_entries` parameter with an array of objects\n* Each object should have `insert_line` and `new_str` properties\n* The `insert_line` parameter specifies the line number after which to insert the new string\n* The `insert_line` parameter is 1-based line number\n* To insert at the very beginning of the file, use `insert_line: 0`\n\nNotes for using the `view` command:\n* Strongly prefer to use larger ranges of at least 1000 lines when scanning through files. One call with large range is much more efficient than many calls with small ranges\n* Prefer to use grep instead of view when looking for a specific symbol in the file\n\nIMPORTANT:\n* This is the only tool you should use for editing files.\n* If it fails try your best to fix inputs and retry.\n* DO NOT fall back to removing the whole file and recreating it from scratch.\n* DO NOT use sed or any other command line tools for editing files.\n* Try to fit as many edits in one tool call as possible\n* Use view command to read the file before editing it.\n",
+      description:
+        "Custom editing tool for viewing, creating and editing files\n* `path` is a file path relative to the workspace root\n* command `view` displays the result of applying `cat -n`.\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* `insert` and `str_replace` commands output a snippet of the edited section for each entry. This snippet reflects the final state of the file after all edits and IDE auto-formatting have been applied.\n\n\nNotes for using the `str_replace` command:\n* Use the `str_replace_entries` parameter with an array of objects\n* Each object should have `old_str`, `new_str`, `old_str_start_line_number` and `old_str_end_line_number` properties\n* The `old_str_start_line_number` and `old_str_end_line_number` parameters are 1-based line numbers\n* Both `old_str_start_line_number` and `old_str_end_line_number` are INCLUSIVE\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespace!\n* Empty `old_str` is allowed only when the file is empty or contains only whitespaces\n* It is important to specify `old_str_start_line_number` and `old_str_end_line_number` to disambiguate between multiple occurrences of `old_str` in the file\n* Make sure that `old_str_start_line_number` and `old_str_end_line_number` do not overlap with other entries in `str_replace_entries`\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`. Can be an empty string to delete content\n\nNotes for using the `insert` command:\n* Use the `insert_line_entries` parameter with an array of objects\n* Each object should have `insert_line` and `new_str` properties\n* The `insert_line` parameter specifies the line number after which to insert the new string\n* The `insert_line` parameter is 1-based line number\n* To insert at the very beginning of the file, use `insert_line: 0`\n\nNotes for using the `view` command:\n* Strongly prefer to use larger ranges of at least 1000 lines when scanning through files. One call with large range is much more efficient than many calls with small ranges\n* Prefer to use grep instead of view when looking for a specific symbol in the file\n\nIMPORTANT:\n* This is the only tool you should use for editing files.\n* If it fails try your best to fix inputs and retry.\n* DO NOT fall back to removing the whole file and recreating it from scratch.\n* DO NOT use sed or any other command line tools for editing files.\n* Try to fit as many edits in one tool call as possible\n* Use view command to read the file before editing it.\n",
       inputSchemaJSON: `{
 				"type": "object",
 				"properties": {
@@ -647,7 +690,8 @@ function getFullToolDefinitions(): ToolDefinition[] {
     },
     {
       name: "launch-process",
-      description: "Launch a new process.\nIf wait is specified, waits up to that many seconds for the process to complete.\nIf the process completes within wait seconds, returns its output.\nIf it doesn't complete within wait seconds, returns partial output and process ID.\nIf wait is not specified, returns immediately with just the process ID.\nThe process's stdin is always enbled, so you can use write_process to send input if needed.",
+      description:
+        "Launch a new process.\nIf wait is specified, waits up to that many seconds for the process to complete.\nIf the process completes within wait seconds, returns its output.\nIf it doesn't complete within wait seconds, returns partial output and process ID.\nIf wait is not specified, returns immediately with just the process ID.\nThe process's stdin is always enbled, so you can use write_process to send input if needed.",
       inputSchemaJSON: `{
 				"type": "object",
 				"properties": {
@@ -701,7 +745,6 @@ function getFullToolDefinitions(): ToolDefinition[] {
   ];
 }
 
-
 // 修改 convertToAugmentRequest 函数
 function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
   const augmentReq: AugmentRequest = {
@@ -715,15 +758,15 @@ function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
     blobs: {
       checkpointID: generateCheckpointID(),
       added_blobs: [],
-      deleted_blobs: []
+      deleted_blobs: [],
     },
     userGuidedBlobs: [],
     externalSourceIds: [],
     featureDetectionFlags: {
-      supportRawOutput: true
+      supportRawOutput: true,
     },
     toolDefinitions: getFullToolDefinitions(),
-    nodes: []
+    nodes: [],
   };
 
   // 处理消息历史
@@ -746,12 +789,12 @@ function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
             toolUse: {
               toolUseID: "",
               toolName: "",
-              inputJSON: ""
+              inputJSON: "",
             },
             agentMemory: {
-              content: ""
-            }
-          }]
+              content: "",
+            },
+          }],
         };
         augmentReq.chatHistory.push(chatHistory);
       }
@@ -796,7 +839,7 @@ router.get("/v1/models", (ctx) => {
         created: 1708387200,
         owned_by: "anthropic",
       },
-    ]
+    ],
   };
 
   ctx.response.body = models;
