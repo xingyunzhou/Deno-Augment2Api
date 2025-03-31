@@ -19,8 +19,8 @@ import {
   ToolDefinition,
 } from "./types.ts";
 
-const kv = await Deno.openKv();
-// const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
+// const kv = await Deno.openKv();
+const kv = await Deno.openKv("https://api.deno.com/databases/b327ac9a-fc76-43ff-88f2-30627830d980/connect");
 
 const app = new Application();
 const router = new Router();
@@ -234,16 +234,16 @@ const chatCompletionsHandler = async (ctx: any) => {
 }
 
 router.post("/v1", async (ctx) => {
-  await chatCompletionsHandler(ctx)
+  return await chatCompletionsHandler(ctx)
 });
 
 router.post("/v1/chat", async (ctx) => {
-  await chatCompletionsHandler(ctx)
+  return await chatCompletionsHandler(ctx)
 });
 
 //v1/chat/completions
 router.post("/v1/chat/completions", async (ctx) => {
-  await chatCompletionsHandler(ctx)
+  return await chatCompletionsHandler(ctx)
 });
 
 // 处理流式请求

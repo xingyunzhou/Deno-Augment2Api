@@ -1,5 +1,5 @@
-@url=https://lpp-deno-9981190.deno.dev
-# @url=http://localhost:4242
+# @url=https://lpp-deno-9981190.deno.dev
+@url=http://localhost:4242
 
 
 POST {{url}}/v1/chat/completions HTTP/1.1
