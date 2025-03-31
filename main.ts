@@ -200,8 +200,7 @@ router.delete("/deleteToken/:token", async (ctx) => {
   }
 });
 
-//v1/chat/completions
-router.post("/v1/chat/completions", async (ctx) => {
+const chatCompletionsHandler = async (ctx: any) => {
   // 获取token
   const iter = kv.list({ prefix: ["auth_token"] });
   const tokens = [];
@@ -232,6 +231,19 @@ router.post("/v1/chat/completions", async (ctx) => {
 
   // 处理非流式请求
   return handleNonStreamRequest(ctx, augmentReq, body.model, token, tenant_url);
+}
+
+router.post("/v1", async (ctx) => {
+  await chatCompletionsHandler(ctx)
+});
+
+router.post("/v1/chat", async (ctx) => {
+  await chatCompletionsHandler(ctx)
+});
+
+//v1/chat/completions
+router.post("/v1/chat/completions", async (ctx) => {
+  await chatCompletionsHandler(ctx)
 });
 
 // 处理流式请求
