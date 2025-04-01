@@ -41,6 +41,7 @@ export interface AugmentRequest {
   prefix?: string;
   suffix?: string;
   lang?: string;
+  userGuideLines?: string,
   path?: string;
   blobs?: {
     checkpointID: string;
