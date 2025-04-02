@@ -200,9 +200,17 @@ router.delete("/deleteToken/:token", async (ctx) => {
 });
 
 const chatCompletionsHandler = async (ctx: any) => {
-  // 打印 Authorization 请求头
-  console.log("Authorization header:", ctx.request.headers.get("authorization"));
-
+  // 检查请求头中的Authorization字段是否和环境变量中的OAUTH_TOKEN一致
+  const authHeader = ctx.request.headers.get("authorization");
+  const oauthToken = Deno.env.get("OAUTH_TOKEN");
+  if (authHeader !== `Bearer ${oauthToken}`) {
+    ctx.response.status = 401;
+    ctx.response.body = {
+      status: "error",
+      message: "Unauthorized",
+    };
+    return;
+  }
   // 获取token
   const iter = kv.list({ prefix: ["auth_token"] });
   const tokens = [];
