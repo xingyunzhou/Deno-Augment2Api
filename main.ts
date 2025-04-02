@@ -200,6 +200,9 @@ router.delete("/deleteToken/:token", async (ctx) => {
 });
 
 const chatCompletionsHandler = async (ctx: any) => {
+  // 打印 Authorization 请求头
+  console.log("Authorization header:", ctx.request.headers.get("authorization"));
+
   // 获取token
   const iter = kv.list({ prefix: ["auth_token"] });
   const tokens = [];
