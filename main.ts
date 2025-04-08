@@ -18,6 +18,7 @@ import {
   TokenData,
   ToolDefinition,
 } from "./types.ts";
+import { isFunction } from "node:util";
 
 const kv = await Deno.openKv();
 
@@ -230,19 +231,19 @@ const chatCompletionsHandler = async (ctx: any) => {
 
   // 处理非流式请求
   return handleNonStreamRequest(ctx, augmentReq, body.model, token, tenant_url);
-}
+};
 
 router.post("/v1", async (ctx) => {
-  await chatCompletionsHandler(ctx)
+  await chatCompletionsHandler(ctx);
 });
 
 router.post("/v1/chat", async (ctx) => {
-  await chatCompletionsHandler(ctx)
+  await chatCompletionsHandler(ctx);
 });
 
 //v1/chat/completions
 router.post("/v1/chat/completions", async (ctx) => {
-  await chatCompletionsHandler(ctx)
+  await chatCompletionsHandler(ctx);
 });
 
 // 处理流式请求
@@ -346,8 +347,9 @@ async function handleStreamRequest(
     ctx.response.status = 500;
     ctx.response.body = {
       status: "error",
-      message: `请求失败: ${error instanceof Error ? error.message : "未知错误"
-        }`,
+      message: `请求失败: ${
+        error instanceof Error ? error.message : "未知错误"
+      }`,
     };
   }
 }
@@ -361,9 +363,9 @@ async function handleNonStreamRequest(
   tenant_url: string,
 ) {
   try {
-    const user_agent = ["augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) GoLand/2024.3.5",
+    const user_agent = [
       "augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5",
-      "augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) PyCharm/2024.3.5"]
+    ];
     const response = await fetch(`${tenant_url}chat-stream`, {
       method: "POST",
       headers: {
@@ -372,7 +374,7 @@ async function handleNonStreamRequest(
         "User-Agent": user_agent[Math.ceil(Math.random() * user_agent.length)],
         "x-api-version": "2",
         "x-request-id": randomUUID(),
-        "x-request-session-id": randomUUID()
+        "x-request-session-id": randomUUID(),
       },
       body: JSON.stringify(augmentReq),
     });
@@ -448,8 +450,9 @@ async function handleNonStreamRequest(
     ctx.response.status = 500;
     ctx.response.body = {
       status: "error",
-      message: `请求失败: ${error instanceof Error ? error.message : "未知错误"
-        }`,
+      message: `请求失败: ${
+        error instanceof Error ? error.message : "未知错误"
+      }`,
     };
   }
 }
@@ -471,7 +474,8 @@ function getMessageContent(message: ChatMessage): string {
 }
 
 // 添加常量定义
-const defaultPrompt = "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly!";
+const defaultPrompt =
+  "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly!";
 const defaultPrefix = "You are AI assistant,help me to solve problems!";
 
 // 生成唯一的请求ID
@@ -757,14 +761,31 @@ function getFullToolDefinitions(): ToolDefinition[] {
 
 // 修改 convertToAugmentRequest 函数
 function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
+  let mode = "AGENT";
+  let userGuideLines = "使用中文回答";
+  let includeToolDefinitions = false;
+  let includeDefaultPrompt = false;
+
+  const modelLower = req.model.toLowerCase();
+
+  if (modelLower.indexOf("-chat") >= 0) {
+    mode = "CHAT";
+  } else if (modelLower.indexOf("-agent") >= 0) {
+    mode = "AGENT";
+    userGuideLines =
+      "Answer in Chinese, do not use any tools, and for questions involving internet searches, please answer based on your existing knowledge.";
+    includeToolDefinitions = true;
+    includeDefaultPrompt = true;
+  }
+
   const augmentReq: AugmentRequest = {
     path: "",
-    mode: "AGENT", // 固定为Agent模式，CHAT模式大概率会使用垃圾模型回复
+    mode,
     prefix: defaultPrefix,
     suffix: " ",
     lang: detectLanguage(req),
     message: "",
-    userGuideLines: "使用中文回答，不要调用任何工具，联网搜索类问题请根据你的已有知识回答",
+    userGuideLines,
     chatHistory: [],
     blobs: {
       checkpointID: generateCheckpointID(),
@@ -776,9 +797,15 @@ function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
     featureDetectionFlags: {
       supportRawOutput: true,
     },
-    toolDefinitions: getFullToolDefinitions(),
+    toolDefinitions: [],
     nodes: [],
   };
+
+  if (includeToolDefinitions) {
+    augmentReq.toolDefinitions = getFullToolDefinitions();
+  } else {
+    augmentReq.toolDefinitions = [];
+  }
 
   // 处理消息历史
   if (req.messages.length > 1) { // 有历史消息
@@ -815,7 +842,11 @@ function convertToAugmentRequest(req: OpenAIRequest): AugmentRequest {
   // 设置当前消息
   if (req.messages.length > 0) {
     const lastMsg = req.messages[req.messages.length - 1];
-    augmentReq.message = defaultPrompt + "\n" + getMessageContent(lastMsg);
+    if (includeDefaultPrompt) {
+      augmentReq.message = defaultPrompt + "\n" + getMessageContent(lastMsg);
+    } else {
+      augmentReq.message = getMessageContent(lastMsg);
+    }
   }
 
   return augmentReq;
@@ -839,16 +870,16 @@ router.get("/v1/models", (ctx) => {
     object: "list",
     data: [
       {
-        id: "claude-3-7-sonnet-20250219",
-        object: "model",
-        created: 1708387201,
-        owned_by: "anthropic",
-      },
-      {
-        id: "claude-3.7",
+        id: "claude-3.7-agent",
         object: "model",
         created: 1708387200,
         owned_by: "anthropic",
+      },
+      {
+        id: "augment-chat",
+        object: "model",
+        created: 1708387200,
+        owned_by: "augment",
       },
     ],
   };
