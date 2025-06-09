@@ -71,7 +71,7 @@
         display: flex;
         flex-direction: row;
         gap: 20px;
-        align-items: stretch;
+        align-items: flex-start;
         min-height: 500px;
       }
 
@@ -102,6 +102,7 @@
         flex: 1;
         position: sticky;
         top: 20px;
+        align-self: flex-start;
       }
 
       @media (max-width: 768px) {
@@ -109,6 +110,7 @@
         .panel-right {
           width: 100%;
           max-width: none;
+          position: static;
         }
       }
 
@@ -232,7 +234,6 @@
         font-size: 14px;
       }
 
-      /* 添加一些图标 */
       .icon {
         display: inline-block;
         width: 1em;
@@ -243,15 +244,15 @@
         vertical-align: middle;
       }
 
-      /* 添加Token列表样式 */
+      /* 优化后的Token列表样式 */
       .token-list {
         display: flex;
         flex-direction: column;
         gap: 15px;
         margin-bottom: 15px;
-        max-height: 500px;
-        overflow-y: auto;
-        padding-right: 10px;
+        /* 移除固定高度限制，让内容自然展开 */
+        overflow: visible;
+        padding-right: 5px;
       }
 
       .token-item {
@@ -260,6 +261,9 @@
         border: 1px solid var(--border-color);
         overflow: hidden;
         transition: all 0.3s ease;
+        /* 确保展开时有足够空间 */
+        position: relative;
+        z-index: 1;
       }
 
       .current-token {
@@ -272,6 +276,11 @@
         cursor: pointer;
         align-items: center;
         background: #f0f2f5;
+        transition: background-color 0.3s;
+      }
+
+      .token-header:hover {
+        background: #e9ecef;
       }
 
       .token-number {
@@ -297,59 +306,81 @@
 
       .token-toggle {
         margin-left: 10px;
-        transition: transform 0.3s;
+        transition: transform 0.3s ease;
+        font-size: 16px;
       }
 
       .token-toggle.open {
         transform: rotate(180deg);
       }
 
+      /* 优化展开动画 */
       .token-details {
-        padding: 0;
-        max-height: 0;
+        background: white;
         overflow: hidden;
-        transition: all 0.3s ease;
+        transition: all 0.4s ease;
+        /* 使用opacity和transform实现更流畅的动画 */
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+        padding: 0 12px;
       }
 
       .token-details.open {
-        padding: 12px;
-        max-height: none;
-        overflow: visible;
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 500px; /* 给一个足够大的值 */
+        padding: 15px 12px;
       }
 
       .token-details .token-label {
         font-size: 13px;
         margin-bottom: 3px;
+        margin-top: 10px;
+      }
+
+      .token-details .token-label:first-child {
+        margin-top: 0;
       }
 
       .token-details .token-display {
         font-size: 13px;
         padding: 10px;
         margin: 5px 0 10px 0;
+        background: var(--bg-color);
       }
 
       .token-actions {
         display: flex;
         justify-content: flex-end;
-        margin-top: 8px;
+        margin-top: 15px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-color);
       }
 
       .token-actions button {
         margin-left: 10px;
         padding: 6px 12px;
         font-size: 13px;
+        margin-top: 0;
+        background: var(--error-color);
+      }
+
+      .token-actions button:hover {
+        background: #d32f2f;
       }
 
       .no-tokens {
-        padding: 20px;
+        padding: 40px 20px;
         text-align: center;
         background: var(--bg-color);
         border-radius: var(--radius);
         color: #666;
         margin-bottom: 15px;
+        border: 2px dashed var(--border-color);
       }
 
-      /* 添加加载动画样式 */
+      /* 加载动画样式 */
       .loading {
         position: relative;
         pointer-events: none;
@@ -382,7 +413,7 @@
         display: none;
       }
 
-      /* 添加页脚样式 */
+      /* 页脚样式 */
       footer {
         text-align: center;
         margin-top: 30px;
@@ -403,8 +434,26 @@
         color: var(--secondary-color);
         text-decoration: underline;
       }
+
+      /* 添加滚动条样式 */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: var(--bg-color);
+        border-radius: 3px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 3px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: #bbb;
+      }
     </style>
-    <!-- 添加图标 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
   </head>
   <body>
@@ -467,7 +516,6 @@
         </div>
       </div>
 
-      <!-- 添加页脚 -->
       <footer>
         Designed by
         <a href="https://github.com/xiaojia21190" target="_blank">lpp</a>
@@ -529,6 +577,17 @@
                   const toggle = tokenItem.querySelector(".token-toggle");
 
                   header.addEventListener("click", function () {
+                    const isOpen = details.classList.contains("open");
+                    
+                    // 关闭所有其他展开的项
+                    listContainer.querySelectorAll(".token-details.open").forEach(openDetail => {
+                      if (openDetail !== details) {
+                        openDetail.classList.remove("open");
+                        openDetail.parentElement.querySelector(".token-toggle").classList.remove("open");
+                      }
+                    });
+
+                    // 切换当前项
                     details.classList.toggle("open");
                     toggle.classList.toggle("open");
                   });
@@ -541,7 +600,7 @@
               document.getElementById("token-list").innerHTML = '<div class="error" style="display:block;">请求失败: ' + error.message + "</div>";
             });
 
-          return Promise.resolve(); // 确保可以使用.finally()
+          return Promise.resolve();
         }
 
         // 显示错误信息的辅助函数
@@ -550,7 +609,7 @@
           tokenListElement.innerHTML = `<div class="error" style="display:block;">${message}</div>`;
         }
 
-        // 获取授权地址
+        // 其余JavaScript代码保持不变...
         document.getElementById("get-auth-url").addEventListener("click", function () {
           const button = this;
           button.classList.add("loading");
@@ -570,7 +629,6 @@
             });
         });
 
-        // 验证授权响应格式
         function validateAuthResponse(response) {
           try {
             const data = JSON.parse(response);
@@ -583,13 +641,11 @@
           }
         }
 
-        // 提交授权响应
         document.getElementById("submit-auth").addEventListener("click", function () {
           const button = this;
           const authResponse = document.getElementById("auth-response").value.trim();
           const validationMessage = document.getElementById("validation-message");
 
-          // 检查是否为空
           if (!authResponse) {
             validationMessage.textContent = "请输入授权响应";
             validationMessage.style.display = "block";
@@ -620,7 +676,7 @@
               if (data.status === "success") {
                 submitResult.textContent = "Token获取成功！";
                 submitResult.className = "success";
-                fetchCurrentToken(); // 刷新当前Token显示
+                fetchCurrentToken();
               } else {
                 submitResult.textContent = "获取失败: " + (data.error || "未知错误");
                 submitResult.className = "error";
@@ -638,7 +694,6 @@
             });
         });
 
-        // 刷新Token
         document.getElementById("refresh-token").addEventListener("click", function () {
           const button = this;
           button.classList.add("loading");
@@ -648,7 +703,6 @@
           });
         });
 
-        // 绑定删除按钮事件
         document.addEventListener("click", function (e) {
           if (e.target.closest(".delete-token")) {
             const button = e.target.closest(".delete-token");
@@ -661,7 +715,7 @@
                 .then((response) => response.json())
                 .then((data) => {
                   if (data.status === "success") {
-                    fetchCurrentToken(); // 刷新列表
+                    fetchCurrentToken();
                   } else {
                     alert("删除失败: " + (data.error || "未知错误"));
                   }
@@ -673,7 +727,6 @@
           }
         });
 
-        // 初始加载
         fetchCurrentToken();
       });
     </script>
